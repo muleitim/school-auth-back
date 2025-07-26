@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: stud-reg-ui
+    env: python
+    region: oregon
+    buildCommand: ""
+    startCommand: gunicorn app:app
+    plan: free
+    branch: main
+    autoDeploy: true
