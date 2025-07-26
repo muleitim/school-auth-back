@@ -12,11 +12,12 @@ from flask_jwt_extended import (
     jwt_required, get_jwt_identity
 )
 
-
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Setup extensions
 db.init_app(app)
-CORS(app, origins=[app.config["CORS_ORIGIN"]], supports_credentials=True)
+CORS(app, supports_credentials=True, origins=[app.config["CORS_ORIGIN"]])  # ✅ ALLOWS CREDENTIALS
 jwt = JWTManager(app)
 
 cloudinary.config(
@@ -26,56 +27,16 @@ cloudinary.config(
     secure=True
 )
 
-# Ensure upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
 
 
-# user profile
-@app.route("/api/me", methods=["POST"])
-@jwt_required()
-def get_profile():
-    user_id = get_jwt_identity()
-    user = AuthorizedUser.query.get(user_id)
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    return jsonify({
-        "id": user.id,
-        "username": user.username,
-        "email": user.email,
-        # Add other fields if needed
-    }), 200
-
-
-
-#Protected route 
-@app.route("/api/protected", methods=["GET"])
-@jwt_required()
-def protected():
-    user_id = get_jwt_identity()
-    return jsonify({"message": f"Welcome User {user_id}!"}), 200
-
-
-
-#Logout api endpoint
-@app.route("/api/logout", methods=["POST"])
-def logout():
-    response = jsonify({"message": "Logged out successfully"})
-    response.set_cookie("access_token_cookie", "", expires=0)
-    response.set_cookie("refresh_token_cookie", "", expires=0)
-    return response, 200
-
-
-
-#Login route
 @app.route("/api/login", methods=["POST"])
 def login():
     data = request.get_json()
-    identifier = data.get("username")  # can be username or email
+    identifier = data.get("username")
     password = data.get("password")
 
     if not identifier or not password:
@@ -92,11 +53,43 @@ def login():
     refresh_token = create_refresh_token(identity=str(user.id))
 
     response = jsonify({"message": "Login successful"})
-    response.set_cookie("access_token_cookie", access_token, httponly=True, samesite="Lax")
-    response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, samesite="Lax")
+    
+    # ✅ Updated for secure cross-site cookies
+    response.set_cookie("access_token_cookie", access_token, httponly=True, secure=True, samesite="None")
+    response.set_cookie("refresh_token_cookie", refresh_token, httponly=True, secure=True, samesite="None")
+
     return response, 200
 
 
+@app.route("/api/logout", methods=["POST"])
+def logout():
+    response = jsonify({"message": "Logged out successfully"})
+    response.set_cookie("access_token_cookie", "", expires=0, secure=True, samesite="None")
+    response.set_cookie("refresh_token_cookie", "", expires=0, secure=True, samesite="None")
+    return response, 200
+
+
+@app.route("/api/protected", methods=["GET"])
+@jwt_required()
+def protected():
+    user_id = get_jwt_identity()
+    return jsonify({"message": f"Welcome User {user_id}!"}), 200
+
+
+@app.route("/api/me", methods=["POST"])
+@jwt_required()
+def get_profile():
+    user_id = get_jwt_identity()
+    user = AuthorizedUser.query.get(user_id)
+
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    return jsonify({
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+    }), 200
 
 
 @app.route("/api/register-student", methods=["POST"])
@@ -111,15 +104,13 @@ def register_student():
     if not file or not allowed_file(file.filename):
         return jsonify({"error": "Invalid or missing file"}), 400
 
-    # Generate filename from registration number (slashes replaced)
     sanitized_reg_no = registration_number.replace("/", "_")
-    file_ext = os.path.splitext(file.filename)[1]  # keep file extension
+    file_ext = os.path.splitext(file.filename)[1]
     filename = f"{sanitized_reg_no}{file_ext}"
 
-    # Upload to Cloudinary
     upload_result = cloudinary.uploader.upload(
         file,
-        public_id=f"students/{sanitized_reg_no}",  # no extension
+        public_id=f"students/{sanitized_reg_no}",
         overwrite=True,
         resource_type="image"
     )
@@ -127,7 +118,6 @@ def register_student():
     cloudinary_url = upload_result["secure_url"]
     print("\nCloudinary url:", cloudinary_url, "\n")
 
-    # Save student record
     student = Student(
         registration_number=registration_number,
         firstname=data.get("firstname"),
@@ -138,7 +128,7 @@ def register_student():
         nationality=data.get("nationality"),
         previous_school=data.get("previous-school"),
         admission_number=data.get("admission-number"),
-        photo_filename=cloudinary_url  # store the URL
+        photo_filename=cloudinary_url
     )
 
     db.session.add(student)
@@ -158,14 +148,12 @@ def get_students():
             "middleName": s.middlename,
             "lastName": s.lastname,
             "admissionNumber": s.admission_number,
-            "photo": s.photo_filename  # Full Cloudinary URL
+            "photo": s.photo_filename
         }
         for s in students
     ])
 
 
-
-# Register authorized user
 @app.route("/api/register-user", methods=["POST"])
 def register_user():
     data = request.get_json()
@@ -187,8 +175,6 @@ def register_user():
     db.session.commit()
 
     return jsonify({"message": "User registered successfully"}), 201
-
-
 
 
 if __name__ == "__main__":

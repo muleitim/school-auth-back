@@ -18,12 +18,12 @@ class Config:
     ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-very-secret-key")
-    JWT_ACCESS_TOKEN_EXPIRES = 3600       # 15 minutes
-    JWT_REFRESH_TOKEN_EXPIRES = 604800   # 7 days (in seconds)
+    JWT_ACCESS_TOKEN_EXPIRES = 3600       # 1 hour
+    JWT_REFRESH_TOKEN_EXPIRES = 604800    # 7 days
+
     JWT_TOKEN_LOCATION = ["cookies"]
-    JWT_COOKIE_SECURE = False            # Set to True in production with HTTPS
-    JWT_COOKIE_CSRF_PROTECT = False      # We'll skip CSRF for simplicity
-    CORS_ORIGIN = os.getenv("CORS_ORIGIN", "http://localhost:3000")
-    JWT_COOKIE_SAMESITE = "Lax"
+    JWT_COOKIE_SECURE = True                  # ✅ REQUIRED for HTTPS
+    JWT_COOKIE_SAMESITE = "None"              # ✅ REQUIRED for cross-origin cookies
     JWT_COOKIE_CSRF_PROTECT = False
 
+    CORS_ORIGIN = os.getenv("CORS_ORIGIN", "http://localhost:3000")
